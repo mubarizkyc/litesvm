@@ -310,7 +310,7 @@ much easier.
 #[cfg(feature = "register-tracing")]
 use crate::register_tracing::DefaultRegisterTracingCallback;
 #[cfg(feature = "hashbrown")]
-use hashbrown::{HashMap, hash_map::Entry};
+use hashbrown::{hash_map::Entry, HashMap};
 #[cfg(feature = "persistence-internal")]
 use indexmap::IndexMap;
 #[cfg(feature = "precompiles")]
@@ -322,10 +322,10 @@ use solana_sysvar::recent_blockhashes::IterItem;
 #[allow(deprecated)]
 use solana_sysvar::{fees::Fees, recent_blockhashes::RecentBlockhashes};
 #[cfg(not(feature = "hashbrown"))]
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::{hash_map::Entry, HashMap};
 use {
     crate::{
-        accounts_db::{AccountsDb, load_preverified, visible_deployment_slot},
+        accounts_db::{load_preverified, visible_deployment_slot, AccountsDb},
         error::LiteSVMError,
         features::MAINNET_ACTIVE_FEATURES,
         history::TransactionHistory,
@@ -334,12 +334,13 @@ use {
             ExecutionResult, FailedTransactionMetadata, TransactionMetadata, TransactionResult,
         },
         utils::{
-            ADDRESS_LOOKUP_TABLE_BASE_SIZE, LoadedTransactionDataSize,
-            TRANSACTION_ACCOUNT_BASE_SIZE, create_blockhash,
-            rent::{RentStateInfo, check_rent_state_with_account},
+            create_blockhash,
+            rent::{check_rent_state_with_account, RentStateInfo},
+            LoadedTransactionDataSize, ADDRESS_LOOKUP_TABLE_BASE_SIZE,
+            TRANSACTION_ACCOUNT_BASE_SIZE,
         },
     },
-    agave_feature_set::{FeatureSet, raise_cpi_nesting_limit_to_8},
+    agave_feature_set::{raise_cpi_nesting_limit_to_8, FeatureSet},
     agave_reserved_account_keys::ReservedAccountKeys,
     log::error,
     solana_account::{Account, AccountSharedData, ReadableAccount, WritableAccount},
@@ -357,10 +358,10 @@ use {
     solana_last_restart_slot::LastRestartSlot,
     solana_loader_v3_interface::state::UpgradeableLoaderState,
     solana_message::{
-        Message, SanitizedMessage, VersionedMessage, inner_instruction::InnerInstructionsList,
+        inner_instruction::InnerInstructionsList, Message, SanitizedMessage, VersionedMessage,
     },
     solana_native_token::LAMPORTS_PER_SOL,
-    solana_nonce::{NONCED_TX_MARKER_IX_INDEX, state::DurableNonce},
+    solana_nonce::{state::DurableNonce, NONCED_TX_MARKER_IX_INDEX},
     solana_program_runtime::{
         invoke_context::{BuiltinFunctionRegisterer, EnvironmentConfig, InvokeContext},
         loaded_programs::{ProgramRuntimeEnvironment, ProgramRuntimeEnvironments},
@@ -383,16 +384,16 @@ use {
     solana_svm_timings::ExecuteTimings,
     solana_svm_transaction::svm_message::{SVMMessage, SVMStaticMessage},
     solana_syscalls::create_program_runtime_environment,
-    solana_system_program::{SystemAccountKind, get_system_account_kind},
+    solana_system_program::{get_system_account_kind, SystemAccountKind},
     solana_sysvar::Sysvar,
     solana_sysvar_id::SysvarId,
     solana_transaction::{
-        sanitized::{MAX_TX_ACCOUNT_LOCKS, MessageHash, SanitizedTransaction},
+        sanitized::{MessageHash, SanitizedTransaction, MAX_TX_ACCOUNT_LOCKS},
         versioned::VersionedTransaction,
     },
     solana_transaction_context::{
-        IndexOfAccount,
         transaction::{ExecutionRecord, TransactionContext},
+        IndexOfAccount,
     },
     solana_transaction_error::TransactionError,
     std::{cell::RefCell, path::Path, rc::Rc, sync::Arc},
@@ -2278,7 +2279,7 @@ impl InvocationInspectCallback for EmptyInvocationInspectCallback {
 mod tests {
     use {
         super::*,
-        solana_instruction::{Instruction, account_meta::AccountMeta},
+        solana_instruction::{account_meta::AccountMeta, Instruction},
         solana_message::{Message, VersionedMessage},
     };
 

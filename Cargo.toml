@@ -8,6 +8,13 @@ edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/LiteSVM/litesvm"
 rust-version = "1.89.0"
+[patch.crates-io]
+solana-sbpf = { path = "../sbpf" }
+solana-transaction-context = { path = "../sbpf_interpreter_/crates/solana-transaction-context" }
+solana-program-runtime = { path = "../sbpf_interpreter_/crates/solana-program-runtime" }
+solana-bpf-loader-program = { path = "../sbpf_interpreter_/crates/solana-bpf-loader-program" }
+solana-system-program = { path = "../sbpf_interpreter_/crates/solana-system-program" }
+solana-syscalls = { path = "../sbpf_interpreter_/crates/solana-syscalls" }
 
 [workspace.dependencies]
 agave-feature-set = "4.3.0"
@@ -64,8 +71,8 @@ solana-nonce-account = "~4.3.0"
 solana-precompile-error = "3.0.0"
 solana-program-error = "3.0.1"
 solana-program-option = "3.1.0"
-solana-program-pack = "3.1.0"
 solana-program-runtime = "4.3.0"
+solana-program-pack = "3.1.0"
 solana-rent = "~4.4.0"
 solana-runtime-transaction = "4.3.0"
 solana-sdk-ids = "3.1.0"
