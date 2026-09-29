@@ -310,7 +310,7 @@ much easier.
 #[cfg(feature = "register-tracing")]
 use crate::register_tracing::DefaultRegisterTracingCallback;
 #[cfg(feature = "hashbrown")]
-use hashbrown::{hash_map::Entry, HashMap};
+use hashbrown::{HashMap, hash_map::Entry};
 #[cfg(feature = "persistence-internal")]
 use indexmap::IndexMap;
 #[cfg(feature = "precompiles")]
@@ -322,10 +322,10 @@ use solana_sysvar::recent_blockhashes::IterItem;
 #[allow(deprecated)]
 use solana_sysvar::{fees::Fees, recent_blockhashes::RecentBlockhashes};
 #[cfg(not(feature = "hashbrown"))]
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 use {
     crate::{
-        accounts_db::{load_preverified, visible_deployment_slot, AccountsDb},
+        accounts_db::{AccountsDb, load_preverified, visible_deployment_slot},
         error::LiteSVMError,
         features::MAINNET_ACTIVE_FEATURES,
         history::TransactionHistory,
@@ -334,13 +334,12 @@ use {
             ExecutionResult, FailedTransactionMetadata, TransactionMetadata, TransactionResult,
         },
         utils::{
-            create_blockhash,
-            rent::{check_rent_state_with_account, RentStateInfo},
-            LoadedTransactionDataSize, ADDRESS_LOOKUP_TABLE_BASE_SIZE,
-            TRANSACTION_ACCOUNT_BASE_SIZE,
+            ADDRESS_LOOKUP_TABLE_BASE_SIZE, LoadedTransactionDataSize,
+            TRANSACTION_ACCOUNT_BASE_SIZE, create_blockhash,
+            rent::{RentStateInfo, check_rent_state_with_account},
         },
     },
-    agave_feature_set::{raise_cpi_nesting_limit_to_8, FeatureSet},
+    agave_feature_set::{FeatureSet, raise_cpi_nesting_limit_to_8},
     agave_reserved_account_keys::ReservedAccountKeys,
     log::error,
     solana_account::{Account, AccountSharedData, ReadableAccount, WritableAccount},
@@ -358,10 +357,10 @@ use {
     solana_last_restart_slot::LastRestartSlot,
     solana_loader_v3_interface::state::UpgradeableLoaderState,
     solana_message::{
-        inner_instruction::InnerInstructionsList, Message, SanitizedMessage, VersionedMessage,
+        Message, SanitizedMessage, VersionedMessage, inner_instruction::InnerInstructionsList,
     },
     solana_native_token::LAMPORTS_PER_SOL,
-    solana_nonce::{state::DurableNonce, NONCED_TX_MARKER_IX_INDEX},
+    solana_nonce::{NONCED_TX_MARKER_IX_INDEX, state::DurableNonce},
     solana_program_runtime::{
         invoke_context::{BuiltinFunctionRegisterer, EnvironmentConfig, InvokeContext},
         loaded_programs::{ProgramRuntimeEnvironment, ProgramRuntimeEnvironments},
@@ -384,16 +383,16 @@ use {
     solana_svm_timings::ExecuteTimings,
     solana_svm_transaction::svm_message::{SVMMessage, SVMStaticMessage},
     solana_syscalls::create_program_runtime_environment,
-    solana_system_program::{get_system_account_kind, SystemAccountKind},
+    solana_system_program::{SystemAccountKind, get_system_account_kind},
     solana_sysvar::Sysvar,
     solana_sysvar_id::SysvarId,
     solana_transaction::{
-        sanitized::{MessageHash, SanitizedTransaction, MAX_TX_ACCOUNT_LOCKS},
+        sanitized::{MAX_TX_ACCOUNT_LOCKS, MessageHash, SanitizedTransaction},
         versioned::VersionedTransaction,
     },
     solana_transaction_context::{
-        transaction::{ExecutionRecord, TransactionContext},
         IndexOfAccount,
+        transaction::{ExecutionRecord, TransactionContext},
     },
     solana_transaction_error::TransactionError,
     std::{cell::RefCell, path::Path, rc::Rc, sync::Arc},
@@ -463,6 +462,7 @@ pub struct LiteSVM {
     /// register trace consumption.
     #[cfg(feature = "invocation-inspect-callback")]
     enable_register_tracing: bool,
+    sysvar_instructions_override: Option<AccountSharedData>,
 }
 
 impl Default for LiteSVM {
@@ -502,6 +502,7 @@ impl LiteSVM {
             enable_register_tracing: _enable_register_tracing,
             #[cfg(feature = "invocation-inspect-callback")]
             invocation_inspect_callback: Arc::new(EmptyInvocationInspectCallback {}),
+            sysvar_instructions_override: None,
         };
 
         #[cfg(feature = "register-tracing")]
@@ -961,7 +962,19 @@ impl LiteSVM {
     pub fn latest_blockhash(&self) -> Hash {
         self.latest_blockhash
     }
+    /// Sets the sysvar to the test environment.
+    pub fn set_sysvar_instructions_override(&mut self, data: Vec<u8>) {
+        self.sysvar_instructions_override =
+            Some(AccountSharedData::from(solana_account::Account {
+                data,
+                owner: solana_sdk_ids::sysvar::id(),
+                ..solana_account::Account::default()
+            }));
+    }
 
+    pub fn clear_sysvar_instructions_override(&mut self) {
+        self.sysvar_instructions_override = None;
+    }
     /// Sets the sysvar to the test environment.
     pub fn set_sysvar<T>(&mut self, sysvar: &T)
     where
@@ -1315,9 +1328,22 @@ impl LiteSVM {
             .map(|(i, key)| {
                 let (loaded_size, account) = if solana_sdk_ids::sysvar::instructions::check_id(key)
                 {
-                    // according to agave code sysvar accounts are 0 loaded size:
-                    // https://github.com/anza-xyz/agave/blob/v4.2.0/svm/src/account_loader.rs#L613-L618
-                    (0, construct_instructions_account(message)?)
+                    if let Some(ref ovr) = self.sysvar_instructions_override {
+                        eprintln!(
+                            "[LiteSVM] Using sysvar instructions override ({} bytes)",
+                            ovr.data().len()
+                        );
+                        (ovr.data().len(), ovr.clone())
+                    } else {
+                        let built = construct_instructions_account(message)?;
+                        eprintln!(
+                            "[LiteSVM] Built sysvar instructions from message ({} bytes)",
+                            built.data().len()
+                        );
+                        // according to agave code sysvar accounts are 0 loaded size:
+                        // https://github.com/anza-xyz/agave/blob/v4.2.0/svm/src/account_loader.rs#L613-L618
+                        (built.data().len(), built)
+                    }
                 } else {
                     let is_instruction_account =
                         SVMStaticMessage::is_instruction_account(message, i);
@@ -2252,7 +2278,7 @@ impl InvocationInspectCallback for EmptyInvocationInspectCallback {
 mod tests {
     use {
         super::*,
-        solana_instruction::{account_meta::AccountMeta, Instruction},
+        solana_instruction::{Instruction, account_meta::AccountMeta},
         solana_message::{Message, VersionedMessage},
     };
 
